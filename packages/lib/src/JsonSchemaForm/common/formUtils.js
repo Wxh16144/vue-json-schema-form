@@ -3,12 +3,12 @@ import FIELDS_MAP from '../config/FIELDS_MAP';
 import retrieveSchema from './schema/retriev';
 import { getPathVal } from './vueUtils';
 
-import { isObject, getSchemaType } from './utils';
+import { getSchemaType, isObject } from './utils';
 
-// 配置表达式，或者常量，或者传入函数
+// 通用的处理表达式方法
 // 这里打破 JSON Schema 规范
 const regExpression = /{{(.*)}}/;
-function handleExpression(rootFormData, curNodePath, expression) {
+function handleExpression(rootFormData, curNodePath, expression, fallBack) {
     // 未配置
     if (undefined === expression) {
         return undefined;
@@ -26,13 +26,23 @@ function handleExpression(rootFormData, curNodePath, expression) {
         return fn(getPathVal(rootFormData, curNodePath, 1), rootFormData);
     }
 
-    // 配置了函数 function
-    if (typeof expression === 'function') {
-        return expression(getPathVal(rootFormData, curNodePath, 1), rootFormData);
-    }
+    // 回退
+    return fallBack();
+}
 
-    // 配置了常量 ？？
-    return expression;
+export function replaceArrayIndex({ schema, uiSchema } = {}, index) {
+    const itemUiOptions = getUiOptions({
+        schema,
+        uiSchema,
+        containsSpec: false
+    });
+
+    return ['title', 'description'].reduce((preVal, curItem) => {
+        if (itemUiOptions[curItem]) {
+            preVal[`ui:${curItem}`] = String(itemUiOptions[curItem]).replace(/\$index/g, index + 1);
+        }
+        return preVal;
+    }, {});
 }
 
 // 是否为 hidden Widget
@@ -46,7 +56,17 @@ export function isHiddenWidget({
     const hiddenExpression = uiSchema['ui:hidden'] || schema['ui:hidden'];
 
     // 支持配置 ui:hidden 表达式
-    return widget === 'HiddenWidget' || widget === 'hidden' || !!handleExpression(rootFormData, curNodePath, hiddenExpression);
+    return widget === 'HiddenWidget'
+        || widget === 'hidden'
+        || !!handleExpression(rootFormData, curNodePath, hiddenExpression, () => {
+            // 配置了函数 function
+            if (typeof hiddenExpression === 'function') {
+                return hiddenExpression(getPathVal(rootFormData, curNodePath, 1), rootFormData);
+            }
+
+            // 配置了常量 ？？
+            return hiddenExpression;
+        });
 }
 
 // 解析当前节点 ui field
@@ -87,54 +107,69 @@ export function getUiField({
 // 解析用户配置的 uiSchema options
 export function getUserUiOptions({
     schema = {},
-    uiSchema = {}
+    uiSchema = {},
+    curNodePath, // undefined 不处理 表达式
+    rootFormData = {}
 }) {
     // 支持 uiSchema配置在 schema文件中
     return Object.assign({}, ...[schema, uiSchema].map(itemSchema => Object.keys(itemSchema)
-        .filter(key => key.indexOf('ui:') === 0)
         .reduce((options, key) => {
             const value = itemSchema[key];
             // options 内外合并
             if (key === 'ui:options' && isObject(value)) {
                 return { ...options, ...value };
             }
-            return { ...options, [key.substring(3)]: value };
+
+            if (key.indexOf('ui:') === 0) {
+                // 只对 ui:xxx 配置形式支持表达式
+                return {
+                    ...options,
+                    [key.substring(3)]: curNodePath === undefined ? value : handleExpression(rootFormData, curNodePath, value, () => value)
+                };
+            }
+
+            return options;
         }, {})));
 }
 
 // 解析当前节点的ui options参数
 export function getUiOptions({
     schema = {},
-    uiSchema = {}
+    uiSchema = {},
+    containsSpec = true,
+    curNodePath,
+    rootFormData,
 }) {
     const spec = {};
-    if (undefined !== schema.multipleOf) {
+    if (containsSpec) {
+        if (undefined !== schema.multipleOf) {
         // 组件计数器步长
-        spec.step = schema.multipleOf;
-    }
-    if (schema.minimum || schema.minimum === 0) {
-        spec.min = schema.minimum;
-    }
-    if (schema.maximum || schema.maximum === 0) {
-        spec.max = schema.maximum;
-    }
+            spec.step = schema.multipleOf;
+        }
+        if (schema.minimum || schema.minimum === 0) {
+            spec.min = schema.minimum;
+        }
+        if (schema.maximum || schema.maximum === 0) {
+            spec.max = schema.maximum;
+        }
 
-    if (schema.minLength || schema.minLength === 0) {
-        spec.minlength = schema.minLength;
-    }
-    if (schema.maxLength || schema.maxLength === 0) {
-        spec.maxlength = schema.maxLength;
-    }
+        if (schema.minLength || schema.minLength === 0) {
+            spec.minlength = schema.minLength;
+        }
+        if (schema.maxLength || schema.maxLength === 0) {
+            spec.maxlength = schema.maxLength;
+        }
 
-    if (schema.format === 'date-time' || schema.format === 'date') {
+        if (schema.format === 'date-time' || schema.format === 'date') {
         // 数组类型 时间区间
         // 打破了schema的规范，type array 配置了 format
-        if (schema.type === 'array') {
-            spec.isRange = true;
-            spec.isNumberValue = !(schema.items && schema.items.type === 'string');
-        } else {
+            if (schema.type === 'array') {
+                spec.isRange = true;
+                spec.isNumberValue = !(schema.items && schema.items.type === 'string');
+            } else {
             // 字符串 ISO 时间
-            spec.isNumberValue = !(schema.type === 'string');
+                spec.isNumberValue = !(schema.type === 'string');
+            }
         }
     }
 
@@ -150,6 +185,8 @@ export function getUiOptions({
         ...getUserUiOptions({
             schema,
             uiSchema,
+            curNodePath,
+            rootFormData
         })
     };
 }
@@ -158,11 +195,15 @@ export function getUiOptions({
 // 处理成 Widget 组件需要的格式
 export function getWidgetConfig({
     schema = {},
-    uiSchema = {}
+    uiSchema = {},
+    curNodePath,
+    rootFormData,
 }, fallback = null) {
     const uiOptions = getUiOptions({
         schema,
-        uiSchema
+        uiSchema,
+        curNodePath,
+        rootFormData,
     });
 
     // 没有配置 Widget ，各个Field组件根据类型判断
@@ -185,6 +226,7 @@ export function getWidgetConfig({
         fieldStyle,
         fieldClass,
         emptyValue,
+        width,
         ...uiProps
     } = uiOptions;
 
@@ -197,6 +239,7 @@ export function getWidgetConfig({
         widgetClass,
         widgetStyle,
         fieldAttrs,
+        width,
         fieldStyle,
         fieldClass,
         emptyValue,
@@ -211,14 +254,18 @@ export function getUserErrOptions({
     errorSchema = {}
 }) {
     return Object.assign({}, ...[schema, uiSchema, errorSchema].map(itemSchema => Object.keys(itemSchema)
-        .filter(key => key.indexOf('err:') === 0)
         .reduce((options, key) => {
             const value = itemSchema[key];
             // options 内外合并
             if (key === 'err:options' && isObject(value)) {
                 return { ...options, ...value };
             }
-            return { ...options, [key.substring(4)]: value };
+
+            if (key.indexOf('err:') === 0) {
+                return { ...options, [key.substring(4)]: value };
+            }
+
+            return options;
         }, {})));
 }
 
@@ -325,12 +372,14 @@ export function allowAdditionalItems(schema) {
 }
 
 // 下拉选项
-export function optionsList(schema, uiSchema) {
+export function optionsList(schema, uiSchema, curNodePath, rootFormData) {
     // enum
     if (schema.enum) {
         const uiOptions = getUserUiOptions({
             schema,
-            uiSchema
+            uiSchema,
+            curNodePath,
+            rootFormData
         });
 
         // ui配置 enumNames 优先
@@ -347,7 +396,9 @@ export function optionsList(schema, uiSchema) {
     return altSchemas.map((curSchema, i) => {
         const uiOptions = (altUiSchemas && altUiSchemas[i]) ? getUserUiOptions({
             schema: curSchema,
-            uiSchema: altUiSchemas[i]
+            uiSchema: altUiSchemas[i],
+            curNodePath,
+            rootFormData
         }) : {};
         const value = toConstant(curSchema);
         const label = uiOptions.title || curSchema.title || String(value);

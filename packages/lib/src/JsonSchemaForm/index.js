@@ -20,11 +20,8 @@ export default {
     data() {
         const formData = this.getStateFromData(this.$props.schema, this.$props.value);
 
-        // 计算form默认值和用户传入的值不相等
         // 保持v-model双向数据及时性
-        if (!deepEquals(formData, this.value)) {
-            this.handlerFormDataChange(formData, this.value);
-        }
+        this.handlerFormDataChange(formData, this.value);
 
         return {
             formData
@@ -110,6 +107,8 @@ export default {
                     }
                 }) : undefined;
 
+        const { layoutColumn = 1, ...formProps } = self.$props.formProps;
+
         const props = {
             schema: this.schema,
             uiSchema: this.uiSchema,
@@ -118,7 +117,12 @@ export default {
             customRule: this.customRule,
             rootSchema: this.schema,
             rootFormData: this.formData, // 根节点的数据
-            curNodePath: '' // 当前节点路径
+            curNodePath: '', // 当前节点路径
+            formProps: {
+                labelPosition: 'top',
+                labelSuffix: '：',
+                ...formProps,
+            }
         };
 
         return h(
@@ -126,16 +130,15 @@ export default {
             {
                 class: {
                     genFromComponent: true,
-                    'form-inlineFooter': self.formProps.inlineFooter,
-                    [`genFromComponent_${this.schema.id}Form`]: !!this.schema.id
+                    'form-inlineFooter': formProps.inlineFooter,
+                    [`genFromComponent_${this.schema.id}Form`]: !!this.schema.id,
+                    layoutColumn: !formProps.inline,
+                    [`layoutColumn-${layoutColumn}`]: !formProps.inline
                 },
                 ref: 'genEditForm',
                 props: {
                     model: self.formData,
-                    labelPosition: 'top',
-                    labelSuffix: '：',
-                    ...self.formProps
-                    // size: 'small'
+                    ...props.formProps
                 }
             },
             [

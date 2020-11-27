@@ -9,7 +9,9 @@ import {
     isEmptyObject, filterObject, guessType, isObject
 } from '../../../common/utils';
 
-import { getWidgetConfig, getUserUiOptions, getUserErrOptions } from '../../../common/formUtils';
+import {
+    getWidgetConfig, getUiOptions, getUserErrOptions
+} from '../../../common/formUtils';
 
 import retrieveSchema from '../../../common/schema/retriev';
 import getDefaultFormState from '../../../common/schema/getDefaultFormState';
@@ -52,7 +54,9 @@ export default {
             // 下拉选项参数
             const selectWidgetConfig = getWidgetConfig({
                 schema: this.schema[`${this.combiningType}Select`] || {}, // 扩展 oneOfSelect,anyOfSelect字段
-                uiSchema: this.uiSchema[`${this.combiningType}Select`] || {} // 通过 uiSchema['oneOf'] 配置ui信息
+                uiSchema: this.uiSchema[`${this.combiningType}Select`] || {}, // 通过 uiSchema['oneOf'] 配置ui信息
+                curNodePath: this.curNodePath,
+                rootFormData: this.rootFormData,
             }, () => ({
                 // 枚举参数
                 widget: 'SelectWidget'
@@ -67,12 +71,15 @@ export default {
             if (!selectWidgetConfig.uiProps.enumOptions) {
                 const uiSchemaSelectList = this.uiSchema[this.combiningType] || [];
                 selectWidgetConfig.uiProps.enumOptions = this.selectList.map((option, index) => {
-                    const curUiOptions = getUserUiOptions({
+                    const curUiOptions = getUiOptions({
                         schema: option,
-                        uiSchema: uiSchemaSelectList[index]
+                        uiSchema: uiSchemaSelectList[index],
+                        containsSpec: false,
+                        // curNodePath: this.curNodePath,
+                        // rootFormData: this.rootFormData,
                     });
                     return {
-                        label: curUiOptions.title || option.title || `选项 ${index + 1}`,
+                        label: curUiOptions.title || `选项 ${index + 1}`,
                         value: index,
                     };
                 });
@@ -138,7 +145,8 @@ export default {
         }
     },
     render(h) {
-        const pathClassName = nodePath2ClassName(this.$props.curNodePath);
+        const { curNodePath } = this.$props;
+        const pathClassName = nodePath2ClassName(curNodePath);
 
         // object 需要保持原有属性，如果存在原有属性这里单独渲染
         let originVnode = null;
@@ -182,9 +190,12 @@ export default {
 
             // 当前节点的ui err配置，用来支持所有选项的统一配置
             // 取出 oneOf anyOf 同级配置，然后再合并到 当前选中的schema中
-            const userUiOptions = filterObject(getUserUiOptions({
+            const userUiOptions = filterObject(getUiOptions({
                 schema: this.schema,
-                uiSchema: this.uiSchema
+                uiSchema: this.uiSchema,
+                containsSpec: false,
+                curNodePath,
+                rootFormData: this.rootFormData,
             }), key => (key === this.combiningType ? undefined : `ui:${key}`));
 
             const userErrOptions = filterObject(getUserErrOptions({

@@ -5,6 +5,10 @@
 import { getDefaultFormState } from '@lljj/vue-json-schema-form';
 import { genId } from '@/_common/utils/id';
 
+function isObject(obj) {
+    return (Object.prototype.toString.call(obj) === '[object Object]');
+}
+
 function isEmptyObject(obj) {
     for (const key in obj) {
         if (Object.prototype.hasOwnProperty.call(obj, key)) {
@@ -50,9 +54,9 @@ export function formatFormLabelWidth(value) {
     return value ? `${value * 4}px` : undefined;
 }
 
-function filterObj(obj, filter = (key, value) => value !== undefined && !isEmptyObject(value)) {
+function filterObj(obj, filter = (key, value) => (isObject(value) && !isEmptyObject(value)) || value !== undefined) {
     const result = {};
-    if (Object.prototype.toString.call(obj) !== '[object Object]') return result;
+    if (!isObject(obj)) return result;
 
     for (const key in obj) {
         if (obj.hasOwnProperty(key)) {
@@ -126,7 +130,10 @@ export function editorItem2SchemaFieldProps(editorItem, formData) {
         disabled: false,
         showPassword: false,
         showWordLimit: false,
-        type: 'text'
+        type: 'text',
+
+        showTitle: true,
+        showDescription: true,
     };
 
     // uiSchema
@@ -162,10 +169,6 @@ export function editorItem2SchemaFieldProps(editorItem, formData) {
         }
     };
 
-    console.log(schema);
-    console.log(uiSchema);
-    console.log('\n');
-
     return {
         rootSchema: schema,
         schema,
@@ -180,7 +183,8 @@ function genBaseObj() {
     return {
         type: 'object',
         required: [],
-        properties: {}
+        properties: {},
+        'ui:order': []
     };
 }
 
@@ -188,14 +192,14 @@ export function componentList2JsonSchema(componentList) {
     const baseObj = genBaseObj();
 
     let parentObj = baseObj;
-    let stack = [{ $$parentFlag: parentObj }, ...componentList];
+    let queue = [{ $$parentFlag: parentObj }, ...componentList];
 
     const hasChild = data => Array.isArray(data.childList) && data.childList.length > 0;
 
-    // 广度，同时标记父节点
-    while (stack.length) {
-        // 出栈
-        const item = stack.shift();
+    // 队列广度，同时标记父节点
+    while (queue.length) {
+        // 出队
+        const item = queue.shift();
 
         // 标记节点 切换parent
         if (item.$$parentFlag) {
@@ -207,13 +211,16 @@ export function componentList2JsonSchema(componentList) {
                 ...uiSchema
             };
 
-            // 入栈
+            // 入队
             if (hasChild(item)) {
-                stack = [...stack, { $$parentFlag: curSchema }, ...item.childList];
+                queue = [...queue, { $$parentFlag: curSchema }, ...item.childList];
             }
 
             // 连接数据
             (parentObj.properties || parentObj.items.properties)[item.componentValue.property] = curSchema;
+
+            // 设置 ui:order
+            (parentObj['ui:order'] || parentObj.items['ui:order']).push(item.componentValue.property);
 
             // 设置 required
             if (required) {

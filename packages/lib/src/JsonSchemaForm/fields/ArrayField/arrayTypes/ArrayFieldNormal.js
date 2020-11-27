@@ -3,7 +3,7 @@
  */
 
 import { computedCurPath } from '../../../common/vueUtils';
-import { getUiOptions } from '../../../common/formUtils';
+import { getUiOptions, replaceArrayIndex } from '../../../common/formUtils';
 
 import SchemaField from '../../SchemaField';
 import FieldGroupWrap from '../../../fieldComponents/FieldGroupWrap';
@@ -23,7 +23,7 @@ export default {
     },
     render(h, context) {
         const {
-            schema, uiSchema, curNodePath, itemsFormData, errorSchema
+            schema, uiSchema, curNodePath, rootFormData, itemsFormData, errorSchema
         } = context.props;
 
         const {
@@ -40,26 +40,38 @@ export default {
             fieldStyle,
         } = getUiOptions({
             schema,
-            uiSchema
+            uiSchema,
+            curNodePath,
+            rootFormData,
         });
 
-        const arrayItemsVNodeList = itemsFormData.map((item, index) => ({
-            key: item.key,
-            vNode: h(
-                SchemaField,
-                {
-                    key: item.key,
-                    props: {
-                        ...context.props,
-                        schema: schema.items,
-                        required: !([].concat(schema.items.type).includes('null')),
-                        uiSchema: uiSchema.items,
-                        errorSchema: errorSchema.items,
-                        curNodePath: computedCurPath(curNodePath, index)
+        const arrayItemsVNodeList = itemsFormData.map((item, index) => {
+            const tempUiSchema = replaceArrayIndex({
+                schema: schema.items,
+                uiSchema: uiSchema.items
+            }, index);
+
+            return {
+                key: item.key,
+                vNode: h(
+                    SchemaField,
+                    {
+                        key: item.key,
+                        props: {
+                            ...context.props,
+                            schema: schema.items,
+                            required: !([].concat(schema.items.type).includes('null')),
+                            uiSchema: {
+                                ...uiSchema.items,
+                                ...tempUiSchema, // 处理过 $index 的标识
+                            },
+                            errorSchema: errorSchema.items,
+                            curNodePath: computedCurPath(curNodePath, index)
+                        }
                     }
-                }
-            )
-        }));
+                )
+            };
+        });
 
         return h(
             FieldGroupWrap,

@@ -2,7 +2,7 @@
 sidebarDepth: 2
 ---
 
-# 基本配置
+# 配置（API）
 
 ## 参数 Props
 
@@ -103,6 +103,20 @@ export default {
 
 用于配置表单展示样式，普通json数据，非 `JSON Schema` 规范
 
+
+#### ui-schema 表达式
+* `0.2` 版本之后，所有 `ui:xxx` 形式的配置都支持表达式（ui:options内不支持表达式以便区分）
+mustache 表达式可使用 `parentFormData`、`rootFormData` 两个内置变量。
+* `parentFormData` 当前节点父级的 FormData值
+* `rootFormData` 根节点的 FormData值
+
+> 配置表达式会通过 `new Function` return 出结果，所以实际你在表达式中也可以访问到全局变量。
+
+比如：（参考这里：[uiSchema 使用表达式](https://form.lljj.me/#/demo?type=uiSchema%28表达式%29)）
+```
+'ui:title': `{{ parentFormData.age > 18 ? '呵呵呵' : '嘿嘿嘿' }}`
+```
+
 :::tip
 * 配置数据结构和 `schema` 保持一致，所有的ui配置属性 `ui:` 开头
 * 也可以在 `ui:options` 内配置所有的属性，不需要 `ui:` 开头
@@ -114,20 +128,47 @@ export default {
 * `ui:hidden` `ui:widget` `ui:field` `ui:fieldProps` 不支持配置在 `ui:options` 中
 :::
 
+
 通用参数格式如下：
 ```js
 uiSchema = {
-    'ui:title': '覆盖schema title', // 覆盖schema title
-    'ui:description': '覆盖schema description描述信息',  // 覆盖schema description
-    'ui:emptyValue': undefined,   // 表单元素输入为空时的值，默认 undefined
-    'ui:field': 'componentName', // 自定义field，不支持配置在options中
-    'ui:hidden': false, // 是否隐藏当前节点，支持配置表达式
-    'ui:fieldProps': undefined, // 传给field的参数，自定义field可以使用，props: { fieldProps }
-    'ui:widget': 'el-slider', // 配置input组件，支持字符串或者传入一个vue组件，不支持配置在options中
-    'ui:labelWidth': '50px', // form item label宽度
+     // 覆盖schema title
+    'ui:title': '覆盖schema title',
+
+    // 覆盖schema description
+    'ui:description': '覆盖schema description描述信息',
+
+    // 表单元素输入为空时的值，默认 undefined
+    'ui:emptyValue': undefined,
+
+     // 是否隐藏当前节点，支持配置表达式，(不支持配置在options中)
+    // https://vue-json-schema-form.lljj.me/zh/guide/data-linkage.html#ui-schema%E9%85%8D%E7%BD%AE%E8%A1%A8%E8%BE%BE%E5%BC%8F
+    'ui:hidden': false,
+
+     // 自定义field (不支持配置在options中)
+    // https://vue-json-schema-form.lljj.me/zh/guide/adv-config.html#%E8%87%AA%E5%AE%9A%E4%B9%89field
+    'ui:field': 'componentName',
+
+    // 自定义field时 传给field的额外props，通过 props: { fieldProps } 接收参数，(不支持配置在options中)
+    'ui:fieldProps': undefined,
+
+    // 自定义widget组件，(不支持配置在options中)
+    // https://vue-json-schema-form.lljj.me/zh/guide/adv-config.html#%E8%87%AA%E5%AE%9A%E4%B9%89widget
+    'ui:widget': 'el-slider',
+
+    // form item label宽度
+    'ui:labelWidth': '50px',
+
     'ui:options': {
-            showTitle: '是否显示标题', // 只对 type为`object`、`array` 类型有效
-            showDescription: '是否显示描述信息', // 只对type为 `object`、`array` 类型有效
+            // 显示标题？只对 type为`object`、`array` 类型有效
+            showTitle: true,
+
+             // 显示描述？ 只对type为 `object`、`array` 类型有效
+            showDescription: false,
+
+            // 默认不配置，0.2 版本新增，用于在多列布局时快速配置列宽度，当然你也可以使用fieldStyle配置样式实现
+            width: '100px',
+
             attrs: {
                 // 通过 vue render函数 attrs 传递给 Widget 组件，只能配置在叶子节点
                 // 你也配置在外层，程序会合并 attrs 和 其它外层属性 通过 attrs 传递给子组件
@@ -157,7 +198,7 @@ uiSchema = {
                 'attr-x': 'xxx'
             },
 
-            // 其它所有参数会通过 props 传递给 Widget 组件
+            // 其它所有参数会合并到 attrs 传递给 Widget 组件
             type: 'textarea',
             placeholder: '请输入你的内容'
     }
@@ -577,6 +618,7 @@ formFooter = {
 ```js
 // 默认值
 formProps = {
+    layoutColumn: 1, // 1 2 3 ，支持 1 2 3 列布局，如果使用inline表单这里配置无效
     labelPosition: 'top', // 表单域标签的位置
     labelSuffix: '：', //
     inline: false, // 行内表单模式

@@ -13,6 +13,7 @@
                 :class="$style.toolBarBtn"
                 class="el-icon-caret-top"
                 title="上移"
+                type="button"
                 @click="$emit('onOperate', { item: editorItem, command: 'moveUp'})"
             ></button>
             <button
@@ -20,6 +21,7 @@
                 :class="$style.toolBarBtn"
                 class="el-icon-caret-bottom"
                 title="下移"
+                type="button"
                 @click="$emit('onOperate', { item: editorItem, command: 'moveDown'})"
             ></button>
             <button
@@ -27,6 +29,7 @@
                 :class="[$style.toolBarBtn]"
                 class="el-icon-copy-document"
                 title="复制"
+                type="button"
                 @click="$emit('onOperate', { item: editorItem, command: 'copy' })"
             ></button>
             <button
@@ -34,6 +37,7 @@
                 :class="$style.toolBarBtn"
                 class="el-icon-delete"
                 title="移除"
+                type="button"
                 @click="$emit('onOperate', { item: editorItem, command: 'remove' })"
             ></button>
         </div>
@@ -43,7 +47,7 @@
         </SchemaField>
 
         <NestedEditor
-            v-if="showNestedEditor"
+            v-if="showNestedEditor(editorItem)"
             :child-component-list="editorItem.childList"
             :drag-options="dragOptions"
             :form-data="formData"
@@ -66,6 +70,10 @@
         },
         mixins: [emitter],
         props: {
+            showNestedEditor: {
+                type: Function,
+                default: () => {}
+            },
             editorItem: {
                 type: Object,
                 default: () => ({})
@@ -77,14 +85,18 @@
             formData: {
                 type: Object,
                 default: () => ({})
+            },
+            formProps: {
+                type: null,
+                default: null
             }
         },
         computed: {
             attrs() {
-                return editorItem2SchemaFieldProps(this.editorItem, this.formData);
-            },
-            showNestedEditor() {
-                return this.editorItem.childList && !this.editorItem.componentPack.viewSchema.format;
+                return {
+                    formProps: this.formProps,
+                    ...editorItem2SchemaFieldProps(this.editorItem, this.formData)
+                };
             }
         },
         beforeDestroy() {
@@ -163,7 +175,7 @@
         &.active {
             border: 1px dashed transparent;
             &:after {
-                box-shadow: 0 0 1px 2px var(--color-primary) inset;
+                box-shadow: 0 0 2px 1px var(--color-primary) inset;
             }
         }
     }
@@ -181,7 +193,7 @@
         right: 0;
         height: 26px;
         border-top-left-radius: 8px;
-        background: rgb(64, 158, 255);
+        background: var(--color-primary);
         display: flex;
         justify-content: center;
         align-items: center;
