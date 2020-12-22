@@ -176,9 +176,6 @@
             }
             :local {
                 .formItemWrap {
-                    width: 100%;
-                    box-sizing: border-box;
-                    font-size: 0;
                     :global {
                         .el-form-item {
                             width: 100% !important;
@@ -216,7 +213,7 @@
                 :local .formItem {
                     width: 33.333%;
                 }
-                .draggableToolItem{
+                .draggableToolItem {
                     width: 33%;
                 }
             }
@@ -224,8 +221,11 @@
     }
 
     .dragArea {
+        width: 100%;
+        box-sizing: border-box;
+        font-size: 0;
         background-color: #f5f5f5;
-        height: calc(100% - 34px);
+        height: 100%;
         padding: 15px;
         overflow: auto;
         .dragArea {

@@ -126,6 +126,9 @@ export default {
         },
         formProps: {
             type: null
+        },
+        getWidget: {
+            type: null
         }
     },
     computed: {
@@ -155,7 +158,7 @@ export default {
             // array 渲染为多选框时默认为空数组
             if (this.schema.items) {
                 this.value = [];
-            } else {
+            } else if (this.required) {
                 this.value = this.uiProps.enumOptions[0].value;
             }
         }
@@ -296,7 +299,14 @@ export default {
                             ...self.uiProps,
                             value: this.value, // v-model
                         },
+                        ref: 'widgetRef',
                         on: {
+                            'hook:mounted': function widgetMounted() {
+                                // 提供一种特殊的配置 允许直接访问到 widget vm
+                                if (self.getWidget && typeof self.getWidget === 'function') {
+                                    self.getWidget.call(null, self.$refs.widgetRef);
+                                }
+                            },
                             input(event) {
                                 const formatValue = self.formatValue(event);
                                 // 默认用户输入变了都是需要更新form数据保持同步，唯一特例 input number

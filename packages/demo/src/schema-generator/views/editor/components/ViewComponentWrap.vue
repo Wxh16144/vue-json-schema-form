@@ -51,6 +51,7 @@
             :child-component-list="editorItem.childList"
             :drag-options="dragOptions"
             :form-data="formData"
+            :form-props="formProps"
         >
         </NestedEditor>
     </div>
@@ -107,7 +108,12 @@
             handleClickView(e) {
                 // 阻止浏览器默认事件
                 e.stopPropagation();
-                if (!this.editorItem.isEdit) this.showEditForm();
+                if (!this.editorItem.isEdit) {
+                    this.showEditForm();
+                } else {
+                    // 设置当前选中tab
+                    this.setCurEditorItem(this.editorItem);
+                }
             },
 
             // 显示编辑form

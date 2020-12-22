@@ -8252,7 +8252,8 @@
           isOnlyFirstError = _ref2$isOnlyFirstErro === void 0 ? true : _ref2$isOnlyFirstErro;
       // 如果数组类型针对配置了 format 的特殊处理
 
-      var isEmpty = formData === undefined || schema.type === 'array' && schema.format && Array.isArray(formData) && formData.length === 0;
+      var emptyArray = schema.type === 'array' && Array.isArray(formData) && formData.length === 0;
+      var isEmpty = formData === undefined || emptyArray;
 
       if (required) {
         if (isEmpty) {
@@ -8278,7 +8279,7 @@
 
           return [requireErrObj];
         }
-      } else if (isEmpty) {
+      } else if (isEmpty && !emptyArray) {
         // 非required 为空 校验通过
         return [];
       } // 校验ajv错误信息
@@ -8530,6 +8531,9 @@
         },
         formProps: {
           type: null
+        },
+        getWidget: {
+          type: null
         }
       },
       computed: {
@@ -8558,7 +8562,7 @@
           // array 渲染为多选框时默认为空数组
           if (this.schema.items) {
             this.value = [];
-          } else {
+          } else if (this.required) {
             this.value = this.uiProps.enumOptions[0].value;
           }
         }
@@ -8668,7 +8672,14 @@
             value: this.value // v-model
 
           }),
+          ref: 'widgetRef',
           on: {
+            'hook:mounted': function widgetMounted() {
+              // 提供一种特殊的配置 允许直接访问到 widget vm
+              if (self.getWidget && typeof self.getWidget === 'function') {
+                self.getWidget.call(null, self.$refs.widgetRef);
+              }
+            },
             input: function input(event) {
               var formatValue = self.formatValue(event); // 默认用户输入变了都是需要更新form数据保持同步，唯一特例 input number
               // 为了兼容 number 小数点后0结尾的数据场景
@@ -9420,15 +9431,20 @@
       var _c = _vm._self._c || _h;
       return _c(
         "el-checkbox-group",
-        {
-          model: {
-            value: _vm.checkList,
-            callback: function($$v) {
-              _vm.checkList = $$v;
-            },
-            expression: "checkList"
-          }
-        },
+        _vm._b(
+          {
+            model: {
+              value: _vm.checkList,
+              callback: function($$v) {
+                _vm.checkList = $$v;
+              },
+              expression: "checkList"
+            }
+          },
+          "el-checkbox-group",
+          _vm.$attrs,
+          false
+        ),
         _vm._l(_vm.enumOptions, function(item, index) {
           return _c("el-checkbox", { key: index, attrs: { label: item.value } }, [
             _vm._v(_vm._s(item.label))
@@ -9749,6 +9765,141 @@
       }
     };
 
+    /**
+     * Created by Liu.Jun on 2020/11/26 10:01 下午.
+     */
+    // mock
+    // https://run.mocky.io/v3/518d7af7-204f-45ab-9628-a6e121dab8ca
+    var UploadWidget = {
+      name: 'UploadWidget',
+      props: {
+        value: {
+          default: null,
+          type: [String, Array]
+        },
+        responseFileUrl: {
+          default: function _default(res) {
+            return res ? res.url || res.data && res.data.url : '';
+          },
+          type: [Function]
+        },
+        btnText: {
+          type: String,
+          default: '点击上传'
+        },
+        // 传入 VNode
+        slots: {
+          type: null,
+          default: null
+        }
+      },
+      data: function data() {
+        // 设置默认 fileList
+        var value = this.value;
+        var isArrayValue = Array.isArray(value);
+        var fileList = this.$attrs.fileList || [];
+
+        if (isArrayValue) {
+          fileList = value.map(function (item, index) {
+            return {
+              name: "\u5DF2\u4E0A\u4F20\u6587\u4EF6\uFF08".concat(index + 1, "\uFF09"),
+              url: item
+            };
+          });
+        } else if (value) {
+          fileList.push({
+            name: '已上传文件',
+            url: value
+          });
+        }
+
+        return {
+          isArrayValue: isArrayValue,
+          fileList: fileList
+        };
+      },
+      methods: {
+        emitValue: function emitValue(fileList) {
+          var _this = this;
+
+          // v-model
+          var value;
+
+          var geUrl = function geUrl(fileItem) {
+            return fileItem && (fileItem.url || _this.responseFileUrl(fileItem.response)) || '';
+          };
+
+          if (this.isArrayValue) {
+            value = fileList.length ? fileList.reduce(function (pre, item) {
+              var url = geUrl(item);
+              if (url) pre.push(url);
+              return pre;
+            }, []) : [];
+          } else {
+            var fileItem = fileList[fileList.length - 1];
+            value = geUrl(fileItem);
+          }
+
+          this.$emit('input', value);
+        }
+      },
+      render: function render() {
+        var _this2 = this;
+
+        var h = this.$createElement;
+        var attrs = this.$attrs;
+        var slots = this.$props.slots;
+        var data = {
+          attrs: _objectSpread2(_objectSpread2({
+            fileList: this.fileList,
+            'on-exceed': function onExceed() {
+              if (_this2.$message) {
+                _this2.$message.warning('超出文件上传数');
+              }
+            }
+          }, attrs), {}, {
+            'on-remove': function onRemove(file, fileList) {
+              _this2.emitValue(fileList);
+
+              if (attrs['on-remove']) {
+                attrs['on-remove'](file, fileList);
+              }
+            },
+            'on-success': function onSuccess(response, file, fileList) {
+              _this2.emitValue(fileList); // 用户注册的 onSuccess
+
+
+              if (attrs['on-success']) {
+                attrs['on-success'](response, file, fileList);
+              }
+            }
+          })
+        };
+        if (!this.isArrayValue) data.attrs.limit = 1;
+        var childVNode = [];
+
+        if (slots && slots.default) {
+          childVNode.push(h('template', {
+            slot: 'default'
+          }, [slots.default]));
+        } else {
+          childVNode.push(h('el-button', {
+            props: {
+              type: 'primary'
+            }
+          }, [this.btnText]));
+        }
+
+        if (slots && slots.tip) {
+          childVNode.push(h('template', {
+            slot: 'tip'
+          }, [slots.tip]));
+        }
+
+        return h('el-upload', data, childVNode);
+      }
+    };
+
     // const files = require.context('.', true, /\.js|vue$/);
     // const widgetComponents = files.keys().reduce((preVal, curKey) => {
     //     if (curKey !== './index.js') {
@@ -9763,7 +9914,8 @@
       SelectWidget: __vue_component__$3,
       TimePickerWidget: TimePickerWidget,
       DatePickerWidget: DatePickerWidget,
-      DateTimePickerWidget: DateTimePickerWidget
+      DateTimePickerWidget: DateTimePickerWidget,
+      UploadWidget: UploadWidget
     }; // 注册组件
 
     Object.entries(widgetComponents).forEach(function (_ref) {
@@ -10555,8 +10707,8 @@
       }
     };
 
-    var ArrayFieldDateRange = {
-      name: 'ArrayFieldDateRange',
+    var ArrayFieldSpecialFormat = {
+      name: 'ArrayFieldSpecialFormat',
       props: vueProps,
       functional: true,
       render: function render(h, context) {
@@ -10566,10 +10718,10 @@
             curNodePath = _context$props.curNodePath,
             rootFormData = _context$props.rootFormData;
         var widgetConfig = getWidgetConfig({
-          schema: schema,
-          uiSchema: _objectSpread2({
+          schema: _objectSpread2({
             'ui:widget': WIDGET_MAP.formats[schema.format]
-          }, uiSchema),
+          }, schema),
+          uiSchema: uiSchema,
           curNodePath: curNodePath,
           rootFormData: rootFormData
         });
@@ -10731,31 +10883,30 @@
 
         if (!schema.hasOwnProperty('items')) {
           throw new Error("[".concat(schema, "] \u8BF7\u5148\u5B9A\u4E49 items\u5C5E\u6027"));
-        } // 特殊处理date datetime format
+        } // 多选类型
 
 
-        if (schema.format) {
-          return h(ArrayFieldDateRange, {
-            props: this.$props,
-            class: _defineProperty({}, lowerCase(ArrayFieldDateRange.name), true)
-          });
-        } // https://json-schema.org/understanding-json-schema/reference/array.html#list-validation
-
-
-        var CurrentField = ArrayFieldNormal;
-
-        if (isFixedItems(schema)) {
-          // https://json-schema.org/understanding-json-schema/reference/array.html#tuple-validation
-          CurrentField = ArrayFieldTuple;
-        } else if (isMultiSelect(schema, rootSchema)) {
+        if (isMultiSelect(schema, rootSchema)) {
           // item 为枚举固定值
-          CurrentField = ArrayFieldMultiSelect;
           return h(ArrayFieldMultiSelect, {
             props: this.$props,
             class: _defineProperty({}, lowerCase(ArrayFieldMultiSelect.name), true)
           });
-        }
+        } // 特殊处理 date datetime time url-upload
+        // array 支持配置 ui:widget
+        // 时间日期区间 或者 ui:widget 特殊配置
 
+
+        if (schema.format || schema['ui:widget'] || uiSchema['ui:widget']) {
+          return h(ArrayFieldSpecialFormat, {
+            props: this.$props,
+            class: _defineProperty({}, lowerCase(ArrayFieldSpecialFormat.name), true)
+          });
+        } // https://json-schema.org/understanding-json-schema/reference/array.html#list-validation
+        // https://json-schema.org/understanding-json-schema/reference/array.html#tuple-validation
+
+
+        var CurrentField = isFixedItems(schema) ? ArrayFieldTuple : ArrayFieldNormal;
         return h('div', [h(CurrentField, {
           props: _objectSpread2({
             itemsFormData: this.itemsFormData
@@ -10814,8 +10965,8 @@
 
           return this.curSelectIndex || 0;
         },
-        // 下拉选项 Vnode
-        getSelectBoxVnode: function getSelectBoxVnode() {
+        // 下拉选项 VNode
+        getSelectBoxVNode: function getSelectBoxVNode() {
           var _this = this;
 
           // 下拉选项参数
@@ -10853,7 +11004,7 @@
               };
             });
           } // oneOf option 渲染
-          // 选择框 vnode
+          // 选择框 VNode
 
 
           return this.$createElement(Widget, {
@@ -10876,16 +11027,19 @@
         // 如果object 类型 option有添加属性 这里做移除
         // 对新option计算默认值
         curSelectIndex: function curSelectIndex(newVal, oldVal) {
-          var curFormData = getPathVal(this.rootFormData, this.curNodePath); // 移除旧key
+          var curFormData = getPathVal(this.rootFormData, this.curNodePath); // 计算出 新选项默认值
+
+          var newOptionData = getDefaultFormState(this.selectList[newVal], undefined, this.rootSchema);
+          var hasOwn = Object.prototype.hasOwnProperty; // 移除旧key
 
           if (isObject(curFormData)) {
             var oldSelectSchema = retrieveSchema(this.selectList[oldVal], this.rootSchema);
 
-            if (oldSelectSchema.type === 'object' || oldSelectSchema.properties) {
+            if (getSchemaType(oldSelectSchema) === 'object') {
               // 移除旧schema添加的属性
               // Object.keys(oldSelectSchema.properties)
               for (var key in oldSelectSchema.properties) {
-                if (Object.prototype.hasOwnProperty.call(oldSelectSchema.properties, key)) {
+                if (hasOwn.call(oldSelectSchema.properties, key) && !hasOwn.call(newOptionData, key)) {
                   deletePathVal(curFormData, key); // delete curFormData[key];
                 }
               }
@@ -10893,18 +11047,18 @@
           } // 设置新值
 
 
-          var newOptionValue = getDefaultFormState(this.selectList[newVal], undefined, this.rootSchema);
-
-          if (guessType(newOptionValue) === 'object') {
-            Object.entries(newOptionValue).forEach(function (_ref) {
+          if (isObject(newOptionData)) {
+            Object.entries(newOptionData).forEach(function (_ref) {
               var _ref2 = _slicedToArray(_ref, 2),
                   key = _ref2[0],
                   value = _ref2[1];
 
-              setPathVal(curFormData, key, value);
+              if (value !== undefined) {
+                setPathVal(curFormData, key, value);
+              }
             });
           } else {
-            setPathVal(this.rootFormData, this.curNodePath, newOptionValue || curFormData);
+            setPathVal(this.rootFormData, this.curNodePath, newOptionData || curFormData);
           }
         }
       },
@@ -10915,7 +11069,7 @@
         var curNodePath = this.$props.curNodePath;
         var pathClassName = nodePath2ClassName(curNodePath); // object 需要保持原有属性，如果存在原有属性这里单独渲染
 
-        var originVnode = null;
+        var originVNode = null;
         var isTypeObject = this.schema.type === 'object' || this.schema.properties;
 
         if (isTypeObject && !isEmptyObject(this.schema.properties)) {
@@ -10923,7 +11077,7 @@
 
           var origSchema = Object.assign({}, this.schema);
           delete origSchema[this.combiningType];
-          originVnode = h(SchemaField, {
+          originVNode = h(SchemaField, {
             key: "origin_".concat(this.combiningType),
             class: (_class2 = {}, _defineProperty(_class2, "".concat(this.combiningType, "_originBox"), true), _defineProperty(_class2, "".concat(pathClassName, "-originBox"), true), _class2),
             props: _objectSpread2(_objectSpread2({}, this.$props), {}, {
@@ -10934,7 +11088,7 @@
         } // 选择附加的节点
 
 
-        var childrenVnodeList = [this.getSelectBoxVnode()]; // 当前选中的 oneOf 附加的节点
+        var childrenVNodeList = [this.getSelectBoxVNode()]; // 当前选中的 oneOf 附加的节点
 
         var curSelectSchema = this.selectList[this.curSelectIndex];
 
@@ -10967,7 +11121,7 @@
           }), function (key) {
             return key === _this2.combiningType ? undefined : "err:".concat(key);
           });
-          childrenVnodeList.push(h(SchemaField, {
+          childrenVNodeList.push(h(SchemaField, {
             key: "appendSchema_".concat(this.combiningType),
             props: _objectSpread2(_objectSpread2({}, this.$props), {}, {
               schema: _objectSpread2({
@@ -10981,10 +11135,10 @@
 
             })
           }));
-        } // oneOf 校验 vnode
+        } // oneOf 校验 VNode
 
 
-        childrenVnodeList.push(h(Widget, {
+        childrenVNodeList.push(h(Widget, {
           class: _defineProperty({
             validateWidget: true
           }, "validateWidget-".concat(this.combiningType), true),
@@ -10996,12 +11150,12 @@
             rootFormData: this.rootFormData
           }
         }));
-        return h('div', [originVnode, h('div', {
+        return h('div', [originVNode, h('div', {
           key: "appendBox_".concat(this.combiningType),
           class: (_class4 = {
             appendCombining_box: true
           }, _defineProperty(_class4, "".concat(this.combiningType, "_appendBox"), true), _defineProperty(_class4, "".concat(pathClassName, "-appendBox"), true), _class4)
-        }, childrenVnodeList)]);
+        }, childrenVNodeList)]);
       }
     };
 
@@ -11286,7 +11440,8 @@
           fieldClass = uiOptions.fieldClass,
           emptyValue = uiOptions.emptyValue,
           width = uiOptions.width,
-          uiProps = _objectWithoutProperties(uiOptions, ["widget", "title", "labelWidth", "description", "attrs", "class", "style", "fieldAttrs", "fieldStyle", "fieldClass", "emptyValue", "width"]);
+          getWidget = uiOptions.getWidget,
+          uiProps = _objectWithoutProperties(uiOptions, ["widget", "title", "labelWidth", "description", "attrs", "class", "style", "fieldAttrs", "fieldStyle", "fieldClass", "emptyValue", "width", "getWidget"]);
 
       return {
         widget: widget,
@@ -11301,6 +11456,7 @@
         fieldStyle: fieldStyle,
         fieldClass: fieldClass,
         emptyValue: emptyValue,
+        getWidget: getWidget,
         uiProps: uiProps
       };
     } // 解析用户配置的 errorSchema options
